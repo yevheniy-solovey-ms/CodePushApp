@@ -1,116 +1,176 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * Generated with the TypeScript template
- * https://github.com/react-native-community/react-native-template-typescript
- *
- * @format
- */
+import React, {useState} from 'react';
+import {Button, SafeAreaView, ScrollView, StatusBar, Text, View} from 'react-native';
+import CodePush, {
+  DownloadProgress,
+  DownloadProgressCallback,
+  LocalPackage,
+  RemotePackage,
+  SyncStatusChangedCallback,
+} from 'react-native-code-push';
 
-import React from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
-
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-const Section: React.FC<{
-  children: React.ReactNode;
-  title: string;
-}> = ({children, title}) => {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-};
+import {Colors} from 'react-native/Libraries/NewAppScreen';
 
 const App = () => {
-  const isDarkMode = useColorScheme() === 'dark';
+  const [localPackage, setLocalPackage] = useState<LocalPackage | null>();
+  const [remotePackage, setRemotePackage] = useState<RemotePackage | null>();
+  const [progressState, setProgress] = useState<string>('');
+  const [logBook, setLog] = useState<string[]>([]);
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  CodePush.notifyAppReady();
+
+  const onGetCurrentVersionButtonPress = () => {
+    CodePush.getUpdateMetadata().then(update => {
+      setLocalPackage(update ? update : null);
+      log('LocalUpdateMetadata');
+      log(JSON.stringify(update));
+    });
+  };
+
+  const onSyncStatusChange: SyncStatusChangedCallback = (syncStatus: CodePush.SyncStatus) => {
+    switch (syncStatus) {
+      case CodePush.SyncStatus.AWAITING_USER_ACTION:
+        log('AWAITING_USER_ACTION');
+        break;
+      case CodePush.SyncStatus.CHECKING_FOR_UPDATE:
+        log('CHECKING_FOR_UPDATE');
+        break;
+      case CodePush.SyncStatus.DOWNLOADING_PACKAGE:
+        log('DOWNLOADING_PACKAGE');
+        break;
+      case CodePush.SyncStatus.INSTALLING_UPDATE:
+        log('INSTALLING_UPDATE');
+        break;
+      case CodePush.SyncStatus.SYNC_IN_PROGRESS:
+        log('SYNC_IN_PROGRESS');
+        break;
+      case CodePush.SyncStatus.UNKNOWN_ERROR:
+        log('UNKNOWN_ERROR');
+        break;
+      case CodePush.SyncStatus.UPDATE_IGNORED:
+        log('UPDATE_IGNORED');
+        break;
+      case CodePush.SyncStatus.UPDATE_INSTALLED:
+        log('UPDATE_INSTALLED');
+        break;
+      case CodePush.SyncStatus.UP_TO_DATE:
+        log('UP_TO_DATE');
+        break;
+    }
+  };
+
+  const downloadProgressCallback: DownloadProgressCallback = (progress: DownloadProgress) => {
+    setProgress(progress.receivedBytes + ' / ' + progress.totalBytes);
+  };
+
+  const onSyncButtonPress = () => {
+    log('onSyncButtonPress');
+    CodePush.sync(undefined, onSyncStatusChange, downloadProgressCallback)
+      .then(
+        result => {
+          log('Result: ' + result.toString());
+        },
+        error => {
+          log('Error: ' + JSON.stringify(error));
+        },
+      )
+      .catch(error => {
+        log('Catch: ' + JSON.stringify(error));
+      });
+  };
+
+  const onSyncImidiateButtonPress = () => {
+    log('onSyncImidiateButtonPress');
+    CodePush.sync({installMode: CodePush.InstallMode.IMMEDIATE}, onSyncStatusChange, downloadProgressCallback);
+  };
+
+  const onSyncWithDialogButtonPress = () => {
+    log('onSyncWithDialogButtonPress');
+    CodePush.sync({updateDialog: {}}, onSyncStatusChange, downloadProgressCallback);
+  };
+
+  const onCheckForUpdate = () => {
+    log('onCheckForUpdate');
+    CodePush.checkForUpdate().then(
+      (remotePackageResponse: RemotePackage | null) => {
+        log('THEN: onCheckForUpdate', JSON.stringify(remotePackage));
+        setRemotePackage(remotePackageResponse);
+      },
+      error => {
+        log('ERROR: ' + error);
+      },
+    );
+  };
+
+  const downloadRemotePackage = () => {
+    remotePackage?.download(downloadProgressCallback).then(
+      localPackageResponse => {
+        setLocalPackage(localPackageResponse);
+      },
+      error => {
+        log('DOWNLOADING ERROR: ' + error);
+      },
+    );
+  };
+
+  const installLocalPackage = () => {
+    localPackage?.install(CodePush.InstallMode.ON_NEXT_RESTART).then(_ => {
+      log('Installation done');
+    });
+  };
+
+  const log = (value: string, obj?: any | undefined) => {
+    if (obj) {
+      let objectString = JSON.stringify(obj);
+      console.log('[CodePush][MY]' + value + objectString);
+      setLog([value + objectString, ...logBook]);
+    } else {
+      console.log('[CodePush][MY]' + value);
+      setLog([value, ...logBook]);
+    }
+  };
+
+  const onGetConfig = () => {
+    const nativeConfig = CodePush.getConfiguration();
+    log('', nativeConfig);
   };
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
+    <SafeAreaView>
+      <StatusBar barStyle={'light-content'} />
+      <ScrollView contentInsetAdjustmentBehavior="automatic">
+        <View style={{backgroundColor: Colors.lighter}}>
+          <Text>Some which should be updated via code push 202111</Text>
+          <Text>Label: "{localPackage?.label}"</Text>
+          <Text>isPending: "{localPackage?.isPending?.toString()}"</Text>
+          <Text>failedInstall: "{localPackage?.failedInstall?.toString()}"</Text>
+          <Text>isFirstRun: "{localPackage?.isFirstRun?.toString()}"</Text>
+          <Text>RemotePackage</Text>
+          <Text>Label: "{remotePackage?.label}"</Text>
+          <Text>isPending: "{remotePackage?.isPending?.toString()}"</Text>
+          <Text>failedInstall: "{remotePackage?.failedInstall?.toString()}"</Text>
+          <Text>isFirstRun: "{remotePackage?.isFirstRun?.toString()}"</Text>
+          <Button title="Get get local config" onPress={onGetConfig} />
+          <Button title="Get Local Update Metadata" onPress={onGetCurrentVersionButtonPress} />
+          <Button title="CodePush.sync();" onPress={onSyncButtonPress} />
+          <Button title="CodePush.sync({updateDialog: {}});" onPress={onSyncWithDialogButtonPress} />
+          <Button
+            title="CodePush.sync({installMode: CodePush.InstallMode.IMMEDIATE});"
+            onPress={onSyncImidiateButtonPress}
+          />
+          <Button title="CodePush.checkForUpdate()" onPress={onCheckForUpdate} />
+          <Button title="Download remote package" onPress={downloadRemotePackage} />
+          <Button title="Install remote package" onPress={installLocalPackage} />
+          <Button title="Restart" onPress={() => CodePush.restartApp()} />
+
+          <Text>{progressState}</Text>
+
+          <Text>
+            <React.Fragment>{JSON.stringify(logBook, null, 2)}</React.Fragment>
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-});
 
 export default App;
